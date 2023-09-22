@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Proctoring_App</string>
+    <string name="switch_camera">Switch Camera</string>
+    <string name="switch_detction">Switch Detection</string>
+    <string name="accessibility_service_description">accessibility_service_description</string>
+    <string name="noise_level">Noise Level</string>
+</resources>
