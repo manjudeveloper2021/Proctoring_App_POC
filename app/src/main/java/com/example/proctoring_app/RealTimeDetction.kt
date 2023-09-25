@@ -12,6 +12,7 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import android.hardware.Camera
 import android.os.Bundle
+import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.View
@@ -22,6 +23,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import com.example.proctoring_app.databinding.ActivityRealTimeDetctionBinding
+import com.google.android.gms.tasks.Task
 import com.google.android.material.navigation.NavigationBarPresenter
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
@@ -35,6 +37,7 @@ import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.opencv.android.OpenCVLoader
 import java.io.ByteArrayOutputStream
 
 // Import the necessary classes
@@ -47,46 +50,42 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
     private lateinit var surfaceHolder: SurfaceHolder
     private lateinit var camera: Camera
     private val CAMERA_PERMISSION_REQUEST_CODE = 100
-    var context :Context? = null
+    var context: Context? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-
-
-
-// Usage example
-        val window = window // Get the window object
-       // val statusBarTouchListener = StatusBarTouchListener(window)
-       // window.decorView.setOnTouchListener(statusBarTouchListener)
-
         context = this
 
         surfaceHolder = binding.surfaceView.holder
         surfaceHolder.addCallback(this)
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.CAMERA),
-                CAMERA_PERMISSION_REQUEST_CODE
-            )
-        }
 
+        Log.e(TAG, "onCreate: open cv"+ OpenCVLoader.OPENCV_VERSION )
+        if (!OpenCVLoader.initDebug()){
+            binding.textViewObject.text =" Open CV faild"
+        }else{
+            binding.textViewObject.text = OpenCVLoader.OPENCV_VERSION.toString()
+        }
 
     }
 
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        surfaceHolder = holder
-       camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_FRONT)
-      //  camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK)
-        camera.setPreviewDisplay(holder)
-        camera.setDisplayOrientation(90)
-        camera.setPreviewCallback(this)
-
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.CAMERA),
+                CAMERA_PERMISSION_REQUEST_CODE
+            )
+        }else{
+            surfaceHolder = holder
+            camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_FRONT)
+//            camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK)
+            camera.setPreviewDisplay(holder)
+            camera.setDisplayOrientation(90)
+            camera.setPreviewCallback(this)
+        }
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -137,11 +136,13 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
 
         if (data!=null){
+//            90 for Camera back
+//            270 for Camera front
             val frame = InputImage.fromByteArray(
                 data,
                 camera.parameters.previewSize.width,
                 camera.parameters.previewSize.height,
-                90,
+                270,
                 InputImage.IMAGE_FORMAT_NV21
             )
             binding.ivStatus.isVisible = false
@@ -166,7 +167,6 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                             // Access face landmarks, bounding box, etc.
                             runOnUiThread {
                                 if (faces.size == 1) {
-
                                     binding.textViewFaceCount.text = "Face size " + faces.size
                                     binding.textViewFaceCount.setBackgroundColor(Color.GREEN)
                                     binding.progressHorizontal.isVisible = false
@@ -199,23 +199,22 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
                                     // Check if both eyes are closed
                                     if (leftEyeOpenProbability != null && rightEyeOpenProbability != null) {
-                                        if (leftEyeOpenProbability <= 0.5 && rightEyeOpenProbability <= 0.5) {
+                                        if (leftEyeOpenProbability <= 0.2 && rightEyeOpenProbability <= 0.2) {
                                             // Perform desired actions
                                             showToast("both eyes are closed")
                                         }
                                     }
 
-                                   /* // Check if lip is moving
-                                    val lipIsMoving = isLipMoving(face)
+                                    val lips = face.getLandmark(FaceLandmark.MOUTH_BOTTOM)
+                                    val isOpen = lips != null
+                                    Log.e(TAG, "onPreviewFrame: lisp is open  -- > $isOpen")
 
-                                    // Perform actions based on lip movement
-                                    if (lipIsMoving) {
-                                        // Lip is moving
-                                        // Do something
+                                    if (checkLipMovement(face)) {
+                                        binding.ivStatus.setBackgroundResource(R.drawable.baseline_tag_faces_open)
                                     } else {
-                                        // Lip is not moving
-                                        // Do something else
-                                    }*/
+                                        binding.ivStatus.setBackgroundResource(R.drawable.baseline_face_close)
+                                    }
+
 
                                 }
                                 else {
@@ -226,15 +225,6 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                     binding.ivStatus.setImageResource(R.drawable.outline_cancel_24)
                                     binding.ivStatus.isVisible = true
 
-                                    AlertDialog.Builder(this@RealTimeDetction)
-                                        .setTitle("Detected multiple faces..!!")
-                                        .setMessage("Do you want to exit")
-                                        .setPositiveButton("Yes",
-                                            DialogInterface.OnClickListener { dialog, which -> finish() })
-
-                                        .setIcon(android.R.drawable.ic_dialog_info)
-                                        .setCancelable(false)
-                                        .show()
                                 }
                             }
                         }
@@ -274,17 +264,6 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
     }
 
-   /* private fun isLipMoving(face: Face?): Boolean {
-        // Get lip landmarks
-        val lipBottom = face?.getLandmark(FaceLandmark.MOUTH_BOTTOM)?.position
-        val lipTop = face?.getLandmark(FaceLandmark.TOP_MOUTH)?.position
-
-        // Calculate lip height
-        val lipHeight = lipTop?.y?.minus(lipBottom?.y ?: 0f)
-
-        // Check if lip height is above a certain threshold
-        return lipHeight ?: 0f > 10f
-    }*/
 
     private fun showToast(msg: String) {
         runOnUiThread {
@@ -301,13 +280,13 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
             .build()
 
-// Create a FaceDetector instance
+        // Create a FaceDetector instance
         val faceDetector = FaceDetection.getClient(options)
         // Create two InputImage objects from the provided images
         val image1 = InputImage.fromBitmap(bitmap1, 90)
         val image2 = InputImage.fromBitmap(bitmap2, 90)
 
-// Process the first image and get the faces detected
+        // Process the first image and get the faces detected
         val result1 = faceDetector.process(image1)
             .addOnSuccessListener { faces ->
                 // Process the second image and get the faces detected
@@ -318,7 +297,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                         // Print the result
                         if (areFacesEqual) {
                             runOnUiThread {
-                            Toast.makeText(this, "The faces are equal $areFacesEqual",Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, "The faces are equal $areFacesEqual",Toast.LENGTH_SHORT).show()
                             }
                             println("The faces are equal.")
                         } else {
@@ -364,63 +343,32 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
     override fun onPause() {
         super.onPause()
-       /* if (camera != null) {
-            camera.release()
-        }*/
+        /* if (camera != null) {
+             camera.release()
+         }*/
     }
 
     override fun onResume() {
         super.onResume()
-       disableStatusBarPullDown()
+//        disableStatusBarPullDown()
 
     }
-   private fun disableStatusBarPullDown() {
-        val flags = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+    private fun checkLipMovement(face: Face): Boolean {
+        val bounds = face.boundingBox
+        val leftEye = face.getLandmark(FaceLandmark.LEFT_EYE)?.position
+        val rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE)?.position
+        val smileProb = face.smilingProbability
+        val leftEyeOpenProb = face.leftEyeOpenProbability
+        val rightEyeOpenProb = face.rightEyeOpenProbability
 
-        window.decorView.systemUiVisibility = flags
-        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-    }
-
-
-    // This snippet hides the system bars.
-    private fun hideSystemUI() {
-        // Set the IMMERSIVE flag.
-        // Set the content to appear under the system bars so that the content
-        // doesn't resize when the system bars hide and show.
-        window.decorView.setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION // hide nav bar
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN // hide status bar
-                    or View.SYSTEM_UI_FLAG_IMMERSIVE
-        )
-    }
-
-    // This snippet shows the system bars. It does this by removing all the flags
-    // except for the ones that make the content appear under the system bars.
-    private fun showSystemUI() {
-        window.decorView.setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        )
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
-            window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+        // Determine the mouth open and close status
+        val mouthOpenCloseStatus = if (smileProb != null && smileProb > 0.4) {
+            return true
+            "Open"
+        } else {
+            "Closed"
+            return false
         }
     }
+
 }
