@@ -8,9 +8,11 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.hardware.Camera
+import android.icu.text.CaseMap.Upper
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
@@ -31,6 +33,10 @@ import com.google.mlkit.vision.face.FaceContour
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.mlkit.vision.face.FaceLandmark
+import com.google.mlkit.vision.face.FaceLandmark.MOUTH_BOTTOM
+import com.google.mlkit.vision.face.FaceLandmark.MOUTH_LEFT
+import com.google.mlkit.vision.face.FaceLandmark.MOUTH_RIGHT
+import com.google.mlkit.vision.face.FaceLandmark.NOSE_BASE
 import com.google.mlkit.vision.objects.ObjectDetection
 import com.google.mlkit.vision.objects.ObjectDetectorOptionsBase
 import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
@@ -39,6 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.opencv.android.OpenCVLoader
 import java.io.ByteArrayOutputStream
+import kotlin.math.sqrt
 
 // Import the necessary classes
 
@@ -215,7 +222,6 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                         binding.ivStatus.setBackgroundResource(R.drawable.baseline_face_close)
                                     }
 
-
                                 }
                                 else {
                                     binding.textViewFaceCount.text = "Face size " + faces.size
@@ -236,7 +242,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
                         }
                     }
-
+/*OBJECT DETECTION*/
                 objectDetector.process(frame)
                     .addOnSuccessListener { detectedObjects ->
                         // Process the detected objects
@@ -317,7 +323,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                 println("Face detection failed: ${exception.message}")
             }
     }
-    // Function to compare the faces detected in both images
+
     private fun compareFaces(faces1: List<Face>, faces2: List<Face>): Boolean {
         if (faces1.size != faces2.size) {
             return false
@@ -370,5 +376,6 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
             return false
         }
     }
+
 
 }
