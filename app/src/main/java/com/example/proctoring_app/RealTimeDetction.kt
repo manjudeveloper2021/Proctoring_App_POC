@@ -1,6 +1,7 @@
 package com.example.proctoring_app
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -30,17 +31,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 
-// Import the necessary classes
 
 private const val TAG = "FaceComparison"
 
-class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.PreviewCallback  , VoiceDetectionListener , View.OnClickListener{
+class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback , Camera.PreviewCallback  , VoiceDetectionListener , View.OnClickListener{
     private val binding by lazy { ActivityRealTimeDetctionBinding.inflate(layoutInflater) }
 
     var context: Context = this
     companion object {
-        private val CAMERA_PERMISSION_REQUEST_CODE = 100
+        private const val CAMERA_PERMISSION_REQUEST_CODE = 100
         const val RECORD_AUDIO_PERMISSION = Manifest.permission.RECORD_AUDIO
         const val PERMISSION_REQUEST_CODE = 1
     }
@@ -49,7 +50,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
     private lateinit var camera: Camera
     //Noise Detection
     private val noiseDetector by lazy { NoiseDetector() }
-    var isRunning : Boolean = false
+    private var isRunning : Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,7 +101,6 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
             PERMISSION_REQUEST_CODE
         )
     }
-
     private fun startNoiseDetection() {
         // always run in background thread
         CoroutineScope(Dispatchers.Default).launch {
@@ -128,7 +128,30 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        camera.startPreview()
+//        camera.startPreview()
+        resetCamera();
+
+    }
+
+    private fun resetCamera() {
+        if (surfaceHolder.surface == null) {
+            // Return if preview surface does not exist
+            return
+        }
+
+        if (camera != null) {
+            // Stop if preview surface is already running.
+            camera.stopPreview()
+            try {
+                // Set preview display
+                camera.setPreviewDisplay(surfaceHolder)
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
+            // Start the camera preview...
+            camera.startPreview()
+        }
+
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -261,7 +284,6 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                 val labels = detectedObject.labels
                                 for (label in labels) {
                                     binding.textViewObject.text = label.text
-//                            println(label.text)
                                 }
                             }
                         }
@@ -427,6 +449,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
         }
     }
 
+    @SuppressLint("SetTextI18n")
     override fun onVoiceDetected(amplitude: Double, isNiceDetected: Boolean, isRunning: Boolean) {
         this@RealTimeDetction.isRunning = isRunning
         runOnUiThread {
