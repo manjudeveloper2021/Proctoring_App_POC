@@ -1,7 +1,6 @@
 package com.example.proctoring_app
 
 import android.Manifest
-import android.app.AlertDialog
 import android.content.Context
 import android.content.DialogInterface
 import android.content.pm.PackageManager
@@ -125,6 +124,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
         val options = FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+            .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
             .enableTracking()
             .build()
@@ -163,7 +163,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                             binding.textViewFaceCount.setBackgroundColor(Color.RED)
                             binding.progressHorizontal.isVisible = false
 
-                            binding.ivStatus.setImageResource(R.drawable.outline_cancel_24)
+                           // binding.ivStatus.setImageResource(R.drawable.outline_cancel_24)
                             binding.ivStatus.isVisible = true
 
                             return@addOnSuccessListener
@@ -178,7 +178,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                     binding.textViewFaceCount.setBackgroundColor(Color.GREEN)
                                     binding.progressHorizontal.isVisible = false
 
-                                    binding.ivStatus.setImageResource(R.drawable.baseline_done_24)
+                                  //  binding.ivStatus.setImageResource(R.drawable.baseline_done_24)
                                     binding.ivStatus.isVisible = true
 
                                     val leftEyeOpenProbability = face.leftEyeOpenProbability
@@ -216,9 +216,28 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                     val isOpen = lips != null
                                     Log.e(TAG, "onPreviewFrame: lisp is open  -- > $isOpen")
 
-                                    if (checkLipMovement(face)) {
+
+//                                    detectMouthOpenCloseStatus(face)
+
+
+                                    val upperLipContour = face.getContour(FaceContour.UPPER_LIP_BOTTOM)?.points
+                                    val lowerLipContour = face.getContour(FaceContour.LOWER_LIP_BOTTOM)?.points
+
+                                    // Detect if the mouth is open or closed
+                                    val thresholdValue = 0.5 // Set your desired threshold value here
+
+                                    val upperLipHeight = upperLipContour?.maxByOrNull { it.y }?.y ?: 0f
+                                    val lowerLipHeight = lowerLipContour?.minByOrNull { it.y }?.y ?: 0f
+
+                                    val mouthOpen = (lowerLipHeight - upperLipHeight) > thresholdValue
+
+                                    if (mouthOpen) {
+                                        // Perform actions when the mouth is open
+                                        println("Mouth is open")
                                         binding.ivStatus.setBackgroundResource(R.drawable.baseline_tag_faces_open)
                                     } else {
+                                        // Perform actions when the mouth is closed
+                                        println("Mouth is closed")
                                         binding.ivStatus.setBackgroundResource(R.drawable.baseline_face_close)
                                     }
 
@@ -228,7 +247,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                     binding.textViewFaceCount.setBackgroundColor(Color.RED)
                                     binding.progressHorizontal.isVisible = false
 
-                                    binding.ivStatus.setImageResource(R.drawable.outline_cancel_24)
+                                   // binding.ivStatus.setImageResource(R.drawable.outline_cancel_24)
                                     binding.ivStatus.isVisible = true
 
                                 }
@@ -268,6 +287,29 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
         }
 
 
+    }
+
+    private fun detectMouthOpenCloseStatus(face: Face) {
+        val upperLipContour = face.getContour(FaceContour.UPPER_LIP_BOTTOM)?.points
+        val lowerLipContour = face.getContour(FaceContour.LOWER_LIP_BOTTOM)?.points
+
+        // Detect if the mouth is open or closed
+        val thresholdValue = 0.2 // Set your desired threshold value here
+
+        val upperLipHeight = upperLipContour?.maxByOrNull { it.y }?.y ?: 0f
+        val lowerLipHeight = lowerLipContour?.minByOrNull { it.y }?.y ?: 0f
+
+        val mouthOpen = (lowerLipHeight - upperLipHeight) > thresholdValue
+
+        if (mouthOpen) {
+            // Perform actions when the mouth is open
+            println("Mouth is open")
+            binding.ivStatus.setBackgroundResource(R.drawable.baseline_tag_faces_open)
+        } else {
+            // Perform actions when the mouth is closed
+            println("Mouth is closed")
+            binding.ivStatus.setBackgroundResource(R.drawable.baseline_face_close)
+        }
     }
 
 
