@@ -82,8 +82,6 @@ class SoundActivity : AppCompatActivity(), VoiceDetectionListener ,View.OnClickL
         }
     }
 
-
-
     override fun onDestroy() {
         super.onDestroy()
         noiseDetector.stop()

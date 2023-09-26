@@ -2,81 +2,113 @@ package com.example.proctoring_app
 
 import android.Manifest
 import android.content.Context
-import android.content.DialogInterface
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.Point
-import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.hardware.Camera
-import android.icu.text.CaseMap.Upper
 import android.os.Bundle
-import android.util.Log
-import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.View
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import com.example.proctoring_app.databinding.ActivityRealTimeDetctionBinding
-import com.google.android.gms.tasks.Task
-import com.google.android.material.navigation.NavigationBarPresenter
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceContour
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
-import com.google.mlkit.vision.face.FaceLandmark
-import com.google.mlkit.vision.face.FaceLandmark.MOUTH_BOTTOM
-import com.google.mlkit.vision.face.FaceLandmark.MOUTH_LEFT
-import com.google.mlkit.vision.face.FaceLandmark.MOUTH_RIGHT
-import com.google.mlkit.vision.face.FaceLandmark.NOSE_BASE
 import com.google.mlkit.vision.objects.ObjectDetection
 import com.google.mlkit.vision.objects.ObjectDetectorOptionsBase
 import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.opencv.android.OpenCVLoader
 import java.io.ByteArrayOutputStream
-import kotlin.math.sqrt
 
 // Import the necessary classes
 
 private const val TAG = "FaceComparison"
 
-class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.PreviewCallback {
-
+class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.PreviewCallback  , VoiceDetectionListener , View.OnClickListener{
     private val binding by lazy { ActivityRealTimeDetctionBinding.inflate(layoutInflater) }
+
+    var context: Context = this
+    companion object {
+        private val CAMERA_PERMISSION_REQUEST_CODE = 100
+        const val RECORD_AUDIO_PERMISSION = Manifest.permission.RECORD_AUDIO
+        const val PERMISSION_REQUEST_CODE = 1
+    }
+
     private lateinit var surfaceHolder: SurfaceHolder
     private lateinit var camera: Camera
-    private val CAMERA_PERMISSION_REQUEST_CODE = 100
-    var context: Context? = null
+    //Noise Detection
+    private val noiseDetector by lazy { NoiseDetector() }
+    var isRunning : Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        context = this
+
+        if (checkPermission()) {
+            startNoiseDetection()
+        } else {
+            requestPermission()
+        }
 
         surfaceHolder = binding.surfaceView.holder
         surfaceHolder.addCallback(this)
 
+        setOnClickListener()
 
-        Log.e(TAG, "onCreate: open cv"+ OpenCVLoader.OPENCV_VERSION )
-        if (!OpenCVLoader.initDebug()){
-            binding.textViewObject.text =" Open CV faild"
-        }else{
-            binding.textViewObject.text = OpenCVLoader.OPENCV_VERSION.toString()
-        }
 
     }
 
+    private fun setOnClickListener() {
+        binding.tvNoiseStatus.setOnClickListener(this)
+    }
+
+    private fun checkPermission(): Boolean {
+        val result = ContextCompat.checkSelfPermission(this,RECORD_AUDIO_PERMISSION)
+        return result == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == SoundActivity.PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startNoiseDetection()
+            } else {
+                // Handle permission denied
+                requestPermission()
+            }
+        }
+    }
+    private fun requestPermission() {
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(RECORD_AUDIO_PERMISSION),
+            PERMISSION_REQUEST_CODE
+        )
+    }
+
+    private fun startNoiseDetection() {
+        // always run in background thread
+        CoroutineScope(Dispatchers.Default).launch {
+            context.let {
+                noiseDetector.start(it,this@RealTimeDetction)
+            }
+        }
+    }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -165,7 +197,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                             binding.progressHorizontal.isVisible = false
 
                            // binding.ivStatus.setImageResource(R.drawable.outline_cancel_24)
-                            binding.ivStatus.isVisible = true
+                            binding.ivStatus.isVisible = false
 
                             return@addOnSuccessListener
                         }
@@ -182,99 +214,9 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                   //  binding.ivStatus.setImageResource(R.drawable.baseline_done_24)
                                     binding.ivStatus.isVisible = true
 
-                                    val leftEyeOpenProbability = face.leftEyeOpenProbability
-                                    val rightEyeOpenProbability = face.rightEyeOpenProbability
+                                    binding.tvEyeStatus.text = eyeTrack(face)
 
-// Perform actions based on eye open and close status
-                                    if (leftEyeOpenProbability != null && rightEyeOpenProbability != null) {
-                                        if (leftEyeOpenProbability > 0.5 && rightEyeOpenProbability > 0.5) {
-                                            // Both eyes are open
-                                            // Perform desired actions
-
-                                        } else if (leftEyeOpenProbability <= 0.5 && rightEyeOpenProbability <= 0.5) {
-                                            // Both eyes are closed
-                                            // Perform desired actions
-
-                                        } else {
-                                            // One eye is open and the other is closed
-                                            // Perform desired actions
-                                            // Check if the left eye is open
-                                            if (leftEyeOpenProbability > 0.5) {
-                                                // Perform desired actions
-
-                                            }
-                                            // Check if the right eye is open
-                                            if (rightEyeOpenProbability > 0.5) {
-                                                // Perform desired actions
-
-                                            }
-                                        }
-                                    }
-
-                                    // Perform further actions based on eye status
-                                    if (leftEyeOpenProbability != null) {
-                                        if (rightEyeOpenProbability != null) {
-                                            if (leftEyeOpenProbability >= 0.5 && rightEyeOpenProbability >= 0.5) {
-                                                // Both eyes are open
-                                                // Perform desired actions
-                                                showToast("both eyes are open")
-                                            } else if (leftEyeOpenProbability < 0.5 && rightEyeOpenProbability >= 0.5) {
-                                                // Left eye is closed, right eye is open
-                                                // Perform desired actions
-                                                showToast("right eye is open")
-                                            } else if (leftEyeOpenProbability >= 0.5 && rightEyeOpenProbability < 0.5) {
-                                                // Left eye is open, right eye is closed
-                                                // Perform desired actions
-                                                showToast("left eye is open")
-                                            } else {
-                                                // Both eyes are closed
-                                                // Perform desired actions
-                                                showToast("both eyes are close")
-                                            }
-                                        }
-                                    }
-
-                                   /* // Check if the left eye is open
-                                    if (leftEyeOpenProbability != null && leftEyeOpenProbability > 0.5) {
-                                        // Perform desired actions
-                                        showToast("left eye is open")
-                                    }
-
-                                    // Check if the right eye is open
-                                    if (rightEyeOpenProbability != null && rightEyeOpenProbability > 0.5) {
-                                        // Perform desired actions
-                                        showToast("right eye is open")
-                                    }
-
-                                    // Check if both eyes are open
-                                    if (leftEyeOpenProbability != null && rightEyeOpenProbability != null) {
-                                        if (leftEyeOpenProbability > 0.5 && rightEyeOpenProbability > 0.5) {
-                                            // Perform desired actions
-                                            showToast("both eyes are open")
-                                        }
-                                    }
-
-                                    // Check if both eyes are closed
-                                    if (leftEyeOpenProbability != null && rightEyeOpenProbability != null) {
-                                        if (leftEyeOpenProbability <= 0.2 && rightEyeOpenProbability <= 0.2) {
-                                            // Perform desired actions
-                                            showToast("both eyes are closed")
-                                        }
-                                    }
-*/
-                                    //lips tracking
-                                    val upperLipContour = face.getContour(FaceContour.UPPER_LIP_BOTTOM)?.points
-                                    val lowerLipContour = face.getContour(FaceContour.LOWER_LIP_BOTTOM)?.points
-
-                                    // Detect if the mouth is open or closed
-                                    val thresholdValue = 0.5 // Set your desired threshold value here
-
-                                    val upperLipHeight = upperLipContour?.maxByOrNull { it.y }?.y ?: 0f
-                                    val lowerLipHeight = lowerLipContour?.minByOrNull { it.y }?.y ?: 0f
-
-                                    val mouthOpen = (lowerLipHeight - upperLipHeight) > thresholdValue
-
-                                    if (mouthOpen) {
+                                    if ( lipTrack(face)) {
                                         // Perform actions when the mouth is open
                                         println("Mouth is open")
                                         binding.ivStatus.setBackgroundResource(R.drawable.baseline_tag_faces_open)
@@ -289,9 +231,8 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                     binding.textViewFaceCount.text = "Face size " + faces.size
                                     binding.textViewFaceCount.setBackgroundColor(Color.RED)
                                     binding.progressHorizontal.isVisible = false
-
                                    // binding.ivStatus.setImageResource(R.drawable.outline_cancel_24)
-                                    binding.ivStatus.isVisible = true
+                                    binding.ivStatus.isVisible = false
 
                                 }
                             }
@@ -332,28 +273,52 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
     }
 
-    private fun detectMouthOpenCloseStatus(face: Face) {
+    private fun eyeTrack(face: Face) :String {
+        val leftEyeOpenProbability = face.leftEyeOpenProbability
+        val rightEyeOpenProbability = face.rightEyeOpenProbability
+
+        // Perform further actions based on eye status
+        if (leftEyeOpenProbability != null) {
+            if (rightEyeOpenProbability != null) {
+                if (leftEyeOpenProbability >= 0.5 && rightEyeOpenProbability >= 0.5) {
+                    // Both eyes are open
+                    // Perform desired actions
+                    return "both eyes are open"
+                } else if (leftEyeOpenProbability < 0.5 && rightEyeOpenProbability >= 0.5) {
+                    // Left eye is closed, right eye is open
+                    // Perform desired actions
+                    return "right eye is open"
+                } else if (leftEyeOpenProbability >= 0.5 && rightEyeOpenProbability < 0.5) {
+                    // Left eye is open, right eye is closed
+                    // Perform desired actions
+                    return "left eye is open"
+                } else {
+                    // Both eyes are closed
+                    // Perform desired actions
+                    return "both eyes are closed"
+                }
+            }
+        }
+
+        return "eye status not available"
+    }
+
+    private fun lipTrack(face: Face) :Boolean {
+        //lips tracking
         val upperLipContour = face.getContour(FaceContour.UPPER_LIP_BOTTOM)?.points
         val lowerLipContour = face.getContour(FaceContour.LOWER_LIP_BOTTOM)?.points
 
         // Detect if the mouth is open or closed
-        val thresholdValue = 0.2 // Set your desired threshold value here
+        val thresholdValue = 0.5 // Set your desired threshold value here
 
         val upperLipHeight = upperLipContour?.maxByOrNull { it.y }?.y ?: 0f
         val lowerLipHeight = lowerLipContour?.minByOrNull { it.y }?.y ?: 0f
 
         val mouthOpen = (lowerLipHeight - upperLipHeight) > thresholdValue
 
-        if (mouthOpen) {
-            // Perform actions when the mouth is open
-            println("Mouth is open")
-            binding.ivStatus.setBackgroundResource(R.drawable.baseline_tag_faces_open)
-        } else {
-            // Perform actions when the mouth is closed
-            println("Mouth is closed")
-            binding.ivStatus.setBackgroundResource(R.drawable.baseline_face_close)
-        }
+        return mouthOpen
     }
+
 
 
     private fun showToast(msg: String) {
@@ -434,55 +399,57 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
     override fun onPause() {
         super.onPause()
-        /* if (camera != null) {
-             camera.release()
-         }*/
+        releaseCamera()
+
     }
 
     override fun onResume() {
         super.onResume()
-//        disableStatusBarPullDown()
 
     }
-    private fun checkLipMovement(face: Face): Boolean {
-        val bounds = face.boundingBox
-        val leftEye = face.getLandmark(FaceLandmark.LEFT_EYE)?.position
-        val rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE)?.position
-        val smileProb = face.smilingProbability
-        val leftEyeOpenProb = face.leftEyeOpenProbability
-        val rightEyeOpenProb = face.rightEyeOpenProbability
-
-        // Determine the mouth open and close status
-        val mouthOpenCloseStatus = if (smileProb != null && smileProb > 0.4) {
-            return true
-            "Open"
-        } else {
-            "Closed"
-            return false
+    private fun releaseCamera() {
+        // check if Camera instance exists
+        if (camera != null) {
+            // first stop preview
+            camera.stopPreview()
+            // then cancel its preview callback
+            camera.setPreviewCallback(null)
+            camera.lock()
+            // and finally release it
+            camera.release()
+            // sanitize you Camera object holder
         }
     }
 
+    override fun onVoiceDetected(amplitude: Double, isNiceDetected: Boolean, isRunning: Boolean) {
+        this@RealTimeDetction.isRunning = isRunning
+        runOnUiThread {
+            if (isRunning){
+                if (isNiceDetected){
+                    binding.tvNoiseStatus.text = "running "+amplitude
+                    binding.tvNoiseStatus.setBackgroundColor(Color.RED)
+                }else{
+                    binding.tvNoiseStatus.text = "running "+amplitude
+                    binding.tvNoiseStatus.setBackgroundColor(Color.GREEN)
+                }
+            }else{
+                binding.tvNoiseStatus.text = "Stoped -> Resume now"
+                binding.tvNoiseStatus.setBackgroundColor(Color.CYAN)
+            }
 
-
-    // Function to determine if the eye is open or closed
-    fun isEyeOpen(eyeContour: List<Point>): Boolean {
-        // Implement your logic here to determine the eye status
-        // Return true if the eye is open, false if it is closed
-        // You can use the eye contour points to analyze the eye shape and determine the status
-        // Example code:
-        val eyeAspectRatio = calculateEyeAspectRatio(eyeContour)
-        return eyeAspectRatio > 0.3
+        }
     }
 
-    // Function to calculate the eye aspect ratio
-    fun calculateEyeAspectRatio(eyeContour: List<Point>): Float {
-        // Implement your logic here to calculate the eye aspect ratio
-        // Return the calculated aspect ratio as a float value
-        // You can use the eye contour points to calculate the aspect ratio
-        // Example code:
-        val eyeWidth = eyeContour[3].x - eyeContour[0].x
-        val eyeHeight = (eyeContour[4].y + eyeContour[5].y) / 2 - (eyeContour[1].y + eyeContour[2].y) / 2
-        return eyeHeight / eyeWidth.toFloat()
+    override fun onDestroy() {
+        super.onDestroy()
+        noiseDetector.stop()
     }
 
+    override fun onClick(view: View?) {
+        when(view?.id){
+                R.id.tvNoiseStatus -> {
+                    if (!isRunning) startNoiseDetection() else noiseDetector.stop()
+                }
+        }
+    }
 }
