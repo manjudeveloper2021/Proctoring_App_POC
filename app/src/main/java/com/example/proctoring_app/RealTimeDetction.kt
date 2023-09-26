@@ -198,6 +198,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
                            // binding.ivStatus.setImageResource(R.drawable.outline_cancel_24)
                             binding.ivStatus.isVisible = false
+                            binding.tvEyeStatus.text=""
 
                             return@addOnSuccessListener
                         }
@@ -215,6 +216,11 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                     binding.ivStatus.isVisible = true
 
                                     binding.tvEyeStatus.text = eyeTrack(face)
+                                    if (eyeTrack(face) == "both eyes are open"){
+                                        binding.tvEyeStatus.setBackgroundColor(Color.GREEN)
+                                    }else{
+                                        binding.tvEyeStatus.setBackgroundColor(0)
+                                    }
 
                                     if ( lipTrack(face)) {
                                         // Perform actions when the mouth is open
@@ -245,7 +251,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
                         }
                     }
-/*OBJECT DETECTION*/
+                /*OBJECT DETECTION*/
                 objectDetector.process(frame)
                     .addOnSuccessListener { detectedObjects ->
                         // Process the detected objects
