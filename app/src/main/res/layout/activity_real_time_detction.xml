@@ -31,12 +31,22 @@
         android:indeterminate="true"
         app:layout_constraintTop_toBottomOf="@id/textViewObject" />
 
+    <TextView
+        android:id="@+id/tvEyeStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/white"
+        android:padding="10dp"
+        android:text="@string/app_name"
+        android:textColor="@color/black"
+        app:layout_constraintTop_toBottomOf="@id/progressHorizontal" />
+
     <SurfaceView
         android:id="@+id/surfaceView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/progressHorizontal" />
+        app:layout_constraintTop_toBottomOf="@id/tvEyeStatus" />
 
     <ImageView
         android:id="@+id/ivStatus"

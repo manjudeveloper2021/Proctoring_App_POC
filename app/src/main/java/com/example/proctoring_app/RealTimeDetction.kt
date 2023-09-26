@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.Point
 import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.YuvImage
@@ -184,7 +185,56 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                     val leftEyeOpenProbability = face.leftEyeOpenProbability
                                     val rightEyeOpenProbability = face.rightEyeOpenProbability
 
-                                    // Check if the left eye is open
+// Perform actions based on eye open and close status
+                                    if (leftEyeOpenProbability != null && rightEyeOpenProbability != null) {
+                                        if (leftEyeOpenProbability > 0.5 && rightEyeOpenProbability > 0.5) {
+                                            // Both eyes are open
+                                            // Perform desired actions
+
+                                        } else if (leftEyeOpenProbability <= 0.5 && rightEyeOpenProbability <= 0.5) {
+                                            // Both eyes are closed
+                                            // Perform desired actions
+
+                                        } else {
+                                            // One eye is open and the other is closed
+                                            // Perform desired actions
+                                            // Check if the left eye is open
+                                            if (leftEyeOpenProbability > 0.5) {
+                                                // Perform desired actions
+
+                                            }
+                                            // Check if the right eye is open
+                                            if (rightEyeOpenProbability > 0.5) {
+                                                // Perform desired actions
+
+                                            }
+                                        }
+                                    }
+
+                                    // Perform further actions based on eye status
+                                    if (leftEyeOpenProbability != null) {
+                                        if (rightEyeOpenProbability != null) {
+                                            if (leftEyeOpenProbability >= 0.5 && rightEyeOpenProbability >= 0.5) {
+                                                // Both eyes are open
+                                                // Perform desired actions
+                                                showToast("both eyes are open")
+                                            } else if (leftEyeOpenProbability < 0.5 && rightEyeOpenProbability >= 0.5) {
+                                                // Left eye is closed, right eye is open
+                                                // Perform desired actions
+                                                showToast("right eye is open")
+                                            } else if (leftEyeOpenProbability >= 0.5 && rightEyeOpenProbability < 0.5) {
+                                                // Left eye is open, right eye is closed
+                                                // Perform desired actions
+                                                showToast("left eye is open")
+                                            } else {
+                                                // Both eyes are closed
+                                                // Perform desired actions
+                                                showToast("both eyes are close")
+                                            }
+                                        }
+                                    }
+
+                                   /* // Check if the left eye is open
                                     if (leftEyeOpenProbability != null && leftEyeOpenProbability > 0.5) {
                                         // Perform desired actions
                                         showToast("left eye is open")
@@ -211,15 +261,8 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
                                             showToast("both eyes are closed")
                                         }
                                     }
-
-                                    val lips = face.getLandmark(FaceLandmark.MOUTH_BOTTOM)
-                                    val isOpen = lips != null
-                                    Log.e(TAG, "onPreviewFrame: lisp is open  -- > $isOpen")
-
-
-//                                    detectMouthOpenCloseStatus(face)
-
-
+*/
+                                    //lips tracking
                                     val upperLipContour = face.getContour(FaceContour.UPPER_LIP_BOTTOM)?.points
                                     val lowerLipContour = face.getContour(FaceContour.LOWER_LIP_BOTTOM)?.points
 
@@ -315,7 +358,7 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
 
     private fun showToast(msg: String) {
         runOnUiThread {
-            Toast.makeText(this,msg,Toast.LENGTH_SHORT).show()
+            binding.tvEyeStatus.text = msg
         }
     }
 
@@ -419,5 +462,27 @@ class RealTimeDetction : AppCompatActivity(), SurfaceHolder.Callback, Camera.Pre
         }
     }
 
+
+
+    // Function to determine if the eye is open or closed
+    fun isEyeOpen(eyeContour: List<Point>): Boolean {
+        // Implement your logic here to determine the eye status
+        // Return true if the eye is open, false if it is closed
+        // You can use the eye contour points to analyze the eye shape and determine the status
+        // Example code:
+        val eyeAspectRatio = calculateEyeAspectRatio(eyeContour)
+        return eyeAspectRatio > 0.3
+    }
+
+    // Function to calculate the eye aspect ratio
+    fun calculateEyeAspectRatio(eyeContour: List<Point>): Float {
+        // Implement your logic here to calculate the eye aspect ratio
+        // Return the calculated aspect ratio as a float value
+        // You can use the eye contour points to calculate the aspect ratio
+        // Example code:
+        val eyeWidth = eyeContour[3].x - eyeContour[0].x
+        val eyeHeight = (eyeContour[4].y + eyeContour[5].y) / 2 - (eyeContour[1].y + eyeContour[2].y) / 2
+        return eyeHeight / eyeWidth.toFloat()
+    }
 
 }
